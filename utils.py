@@ -4,7 +4,7 @@ from urllib.parse import urlparse
 from url_normalize import url_normalize
 
 
-USER_AGENT = "fri-ieps-rmj1"
+USER_AGENT = "fri-ieps-rmj"
 
 
 def get_browser():

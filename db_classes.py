@@ -1,6 +1,5 @@
-from url_normalize import url_normalize
 from urllib.robotparser import RobotFileParser
-from sqlalchemy import Column, Integer, String, TIMESTAMP, Binary, ForeignKey, LargeBinary, exists, Table, and_
+from sqlalchemy import Column, Integer, String, TIMESTAMP, Binary, ForeignKey, LargeBinary, Table, and_
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
 from hashlib import sha256
