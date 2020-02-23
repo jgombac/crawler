@@ -1,0 +1,1 @@
+docker run -d --name crawler-db -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=crawldb -p 5432:5432 postgres

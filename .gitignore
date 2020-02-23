@@ -1,0 +1,4 @@
+/.vs/*
+/ghostdriver.log
+/.idea/*
+/__pycache__/*
