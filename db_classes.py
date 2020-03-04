@@ -6,7 +6,6 @@ from hashlib import sha256
 from datetime import datetime
 from utils import *
 
-
 Base = declarative_base()
 
 
@@ -33,7 +32,6 @@ class Site(Base):
             self.robots_content = ""
             print(e)
 
-
     def retrieve_sitemap_content(self, robots):
         url = url_normalize(robots.site_maps()[0])
         browser = get_browser()
@@ -54,6 +52,7 @@ link_table = Table("link", Base.metadata,
                    Column("from_page", Integer, ForeignKey("page.id")),
                    Column("to_page", Integer, ForeignKey("page.id")))
 
+
 class Page(Base):
     __tablename__ = "page"
 
@@ -72,7 +71,6 @@ class Page(Base):
     images = relationship("Image", back_populates="page")
     page_data = relationship("PageData", back_populates="page")
 
-
     from_page = relationship(
         'Page', secondary=link_table,
         primaryjoin=link_table.c.to_page == id,
@@ -85,7 +83,6 @@ class Page(Base):
         secondaryjoin=link_table.c.to_page == id,
         back_populates="from_page")
 
-
     def retrieve_page(self, db):
         url = url_normalize(self.url)
         self.domain = get_domain(url)
@@ -93,7 +90,7 @@ class Page(Base):
         response = browser.request("HEAD", url)
 
         self.http_status_code = response.status_code
-        self.accessed_time = datetime.fromtimestamp(datetime.timestamp(datetime.now()))
+        self.accessed_time = get_current_datetime()
 
         if response.status_code != 200:
             return
@@ -117,7 +114,6 @@ class Page(Base):
             self.page_type_code = "DUPLICATE"
             return
 
-
         self.html_content = self.get_html_content(browser)
 
         self.checksum = self.get_checksum(self.html_content)
@@ -134,12 +130,10 @@ class Page(Base):
             if existing_page not in self.to_page:
                 self.to_page.append(existing_page)
 
-
         images = [link.get_attribute("src") for link in
                   browser.find_elements_by_xpath("//img[@src]")]
 
         self.images = [Image(page=self, filename=img) for img in images]
-
 
     def get_links(self, browser):
         links = [link.get_attribute("href") for link in
@@ -182,6 +176,10 @@ class Page(Base):
             if existing_page:
                 self.page_type_code = "DUPLICATE"
 
+    def get_domain(self):
+        url = url_normalize(self.url)
+        self.domain = get_domain(url)
+        return self.domain
 
 
 class Image(Base):
@@ -206,7 +204,6 @@ class PageData(Base):
     data = Column(Binary)
 
     page = relationship("Page", back_populates="page_data")
-
 
 
 class DataType(Base):
