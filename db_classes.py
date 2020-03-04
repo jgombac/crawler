@@ -219,3 +219,10 @@ class PageType(Base):
     __tablename__ = "page_type"
 
     code = Column(String, primary_key=True)
+
+
+class VisitedIP(Base):
+    __tablename__ = "visited_ip"
+
+    ip = Column(String, primary_key=True)
+    last_visited = Column(TIMESTAMP)

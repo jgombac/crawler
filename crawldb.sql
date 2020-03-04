@@ -69,6 +69,12 @@ CREATE INDEX "idx_link_from_page" ON crawldb.link ( from_page );
 
 CREATE INDEX "idx_link_to_page" ON crawldb.link ( to_page );
 
+CREATE TABLE crawldb.visited_ip (
+    ip varchar(255),
+    last_visited timestamp,
+    CONSTRAINT pk_ip PRIMARY KEY ( ip )
+);
+
 ALTER TABLE crawldb.image ADD CONSTRAINT fk_image_page_data FOREIGN KEY ( page_id ) REFERENCES crawldb.page( id ) ON DELETE RESTRICT;
 
 ALTER TABLE crawldb.link ADD CONSTRAINT fk_link_page FOREIGN KEY ( from_page ) REFERENCES crawldb.page( id ) ON DELETE RESTRICT;
