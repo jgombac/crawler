@@ -3,6 +3,7 @@ from sqlalchemy import Column, Integer, String, TIMESTAMP, Binary, ForeignKey, L
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
 from hashlib import sha256
+from selenium.common.exceptions import TimeoutException
 from datetime import datetime
 from utils import *
 
@@ -86,8 +87,16 @@ class Page(Base):
     def retrieve_page(self, db):
         url = url_normalize(self.url)
         self.domain = get_domain(url)
+        print(f"Fetching page {url}")
         browser = get_browser()
-        response = browser.request("HEAD", url)
+        try:
+            response = browser.request("HEAD", url, page_load_timeout=10)
+        except TimeoutException as te:
+            print(f"HEAD TimeoutException on {url}")
+            self.http_status_code = 408
+            self.accessed_time = get_current_datetime()
+            self.page_type_code = "DUPLICATE"
+            return
 
         self.http_status_code = response.status_code
         self.accessed_time = get_current_datetime()
@@ -102,8 +111,13 @@ class Page(Base):
         if content_type != "text/html":
             self.page_data = [PageData(page=self, data_type_code=get_page_data_type(content_type))]
             return
-
-        browser.get(url)
+        try:
+            browser.get(url)
+        except TimeoutException as te:
+            print(f"GET TimeoutException on page {url}")
+            self.http_status_code = 408
+            self.page_type_code = "DUPLICATE"
+            return
 
         self.accessed_time = datetime.fromtimestamp(datetime.timestamp(datetime.now()))
 
@@ -133,7 +147,7 @@ class Page(Base):
         images = [link.get_attribute("src") for link in
                   browser.find_elements_by_xpath("//img[@src]")]
 
-        self.images = [Image(page=self, filename=img) for img in images]
+        self.images = [Image(page=self, filename=img if not img.startswith("data") else "") for img in images]
 
     def get_links(self, browser):
         links = [link.get_attribute("href") for link in

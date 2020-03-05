@@ -11,6 +11,7 @@ USER_AGENT = "fri-ieps-rmj"
 def get_browser():
     caps = DesiredCapabilities.PHANTOMJS
     caps["phantomjs.page.settings.userAgent"] = USER_AGENT
+    caps["phantomjs.page.settings.resourceTimeout"] = 10000
     return PhantomJS(desired_capabilities=caps, service_args=['--ignore-ssl-errors=true'])
 
 
@@ -41,7 +42,7 @@ PAGE_DATA_TYPES = {
 
 
 def get_page_data_type(content_type):
-    return PAGE_DATA_TYPES.get(content_type, "")
+    return PAGE_DATA_TYPES.get(content_type, "Other")
 
 
 def get_domain(url):
