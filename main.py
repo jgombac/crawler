@@ -107,7 +107,7 @@ if __name__ == "__main__":
     for seed in site_seeds:
         Page.find_or_create_page(seed, db)
 
-    with concurrent.futures.ThreadPoolExecutor(max_workers=6) as executor:
-        for _ in range(6):
-            executor.submit(crawl())
-
+    with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
+        for _ in range(2):
+            executor.submit(crawl)
+    print("Done?")
