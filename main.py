@@ -8,11 +8,13 @@ from sqlalchemy import create_engine
 from socket import gethostbyname, gaierror
 import concurrent.futures
 import threading
+import time
 
 
 import warnings
 warnings.filterwarnings("ignore")
 page_selection_lock = threading.Lock()
+ACTIVE_THREADS = 0
 DEFAULT_REQUEST_DELAY = 5
 
 CONNECTION_STRING = "postgres://postgres:postgres@192.168.99.100:5432/crawldb"
@@ -22,7 +24,7 @@ db = Session()
 db.execute("SET search_path TO crawldb")
 
 
-site_seeds = ["www.gov.si"]  # "evem.gov.si", "e-uprava.gov.si", "e-prostor.gov.si"]
+site_seeds = ["www.gov.si", "evem.gov.si", "e-uprava.gov.si", "e-prostor.gov.si"]
 
 
 def get_first_in_queue():
@@ -57,11 +59,18 @@ def crawl_page(page):
 
 
 def crawl():
+    global ACTIVE_THREADS
     page = get_first_in_queue()
-
-    while page:
+    if page:
+        ACTIVE_THREADS += 1
         crawl_page(page)
-        page = get_first_in_queue()
+        ACTIVE_THREADS -= 1
+
+    # while page:
+    #
+    #
+    #     page = get_first_in_queue()
+
 
 
 def wait_before_crawling(page: Page, delay):
@@ -102,12 +111,18 @@ def wait_before_crawling(page: Page, delay):
         return False
 
 
+
 if __name__ == "__main__":
 
     for seed in site_seeds:
         Page.find_or_create_page(seed, db)
 
-    with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
-        for _ in range(2):
-            executor.submit(crawl)
+    with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
+        while True:
+            print("ACTIVE:", ACTIVE_THREADS)
+            time.sleep(1)
+            if ACTIVE_THREADS < 10:
+                time.sleep(1)
+                executor.submit(crawl)
+
     print("Done?")

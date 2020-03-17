@@ -1,18 +1,28 @@
 from datetime import datetime
 
 from selenium.webdriver.common.desired_capabilities import DesiredCapabilities
-from seleniumrequests import PhantomJS
+from selenium.webdriver.firefox.options import Options as FirefoxOptions
+from seleniumrequests import PhantomJS, Firefox
 from urllib.parse import urlparse
 from url_normalize import url_normalize
-
+import os
 USER_AGENT = "fri-ieps-rmj"
 
 
 def get_browser():
-    caps = DesiredCapabilities.PHANTOMJS
-    caps["phantomjs.page.settings.userAgent"] = USER_AGENT
-    caps["phantomjs.page.settings.resourceTimeout"] = 10000
-    return PhantomJS(desired_capabilities=caps, service_args=['--ignore-ssl-errors=true'])
+    # caps = DesiredCapabilities.PHANTOMJS
+    # caps["phantomjs.page.settings.userAgent"] = USER_AGENT
+    # caps["pageLoadStrategy"] = "eager"
+    # browser = PhantomJS(desired_capabilities=caps, service_args=['--ignore-ssl-errors=true'], service_log_path=os.path.devnull)
+    # browser.set_page_load_timeout(5)
+
+    caps = DesiredCapabilities().FIREFOX
+    options = FirefoxOptions()
+    options.add_argument("--headless")
+    caps["pageLoadStrategy"] = "eager"  # interactive
+    browser = Firefox(desired_capabilities=caps, options=options)
+    browser.set_page_load_timeout(5)
+    return browser
 
 
 def get_content_type(headers):

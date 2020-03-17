@@ -53,6 +53,7 @@ class Site(Base):
                 self.sitemap_content = response.content
             else:
                 self.sitemap_content = response.content.decode("utf-8")
+        browser.quit()
 
     def get_robots(self):
         rp = RobotFileParser()
@@ -123,12 +124,15 @@ class Page(Base):
             self.http_status_code = 408
             self.accessed_time = get_current_datetime()
             self.page_type_code = "DUPLICATE"
+            browser.quit()
             return
 
         self.http_status_code = response.status_code
         self.accessed_time = get_current_datetime()
 
         if response.status_code != 200:
+            self.page_type_code = "DUPLICATE"
+            browser.quit()
             return
 
         content_type = get_content_type(response.headers)
@@ -137,6 +141,7 @@ class Page(Base):
 
         if content_type != "text/html":
             self.page_data = [PageData(page=self, data_type_code=get_page_data_type(content_type))]
+            browser.quit()
             return
         try:
             browser.get(url)
@@ -144,6 +149,7 @@ class Page(Base):
             print(f"GET TimeoutException on page {url}")
             self.http_status_code = 408
             self.page_type_code = "DUPLICATE"
+            browser.quit()
             return
 
         self.accessed_time = datetime.fromtimestamp(datetime.timestamp(datetime.now()))
@@ -153,6 +159,7 @@ class Page(Base):
         # If page has a canonical link, mark it as duplicate, to remove it from frontier
         if self.canonical_link:
             self.page_type_code = "DUPLICATE"
+            browser.quit()
             return
 
         self.html_content = self.get_html_content(browser)
@@ -172,6 +179,7 @@ class Page(Base):
                   browser.find_elements_by_xpath("//img[@src]")]
 
         self.images = [Image(page=self, filename=img if not img.startswith("data") else "") for img in images]
+        browser.quit()
 
     def get_links(self, browser):
         links = [link.get_attribute("href") for link in
