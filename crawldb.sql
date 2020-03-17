@@ -103,4 +103,4 @@ INSERT INTO crawldb.page_type VALUES
 	('DUPLICATE'),
 	('FRONTIER'),
 	('CRAWLING'),
-	('OUT_OF_SCOPE');
+	('SKIP');

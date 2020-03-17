@@ -33,8 +33,8 @@ def get_first_in_queue():
             .order_by(Page.id).first()
         page.page_type_code = "CRAWLING"
         db.commit()
-        print(f"Set {page.url} to {page.page_type_code}")
-        return page
+    print(f"Crawling {page.url} from thread {threading.currentThread().ident}")
+    return page
 
 
 def crawl_page(page):
@@ -48,6 +48,7 @@ def crawl_page(page):
 
     # Don't crawl the site if we can't find it's IP
     if not wait_before_crawling(page, delay):
+        page.page_type_code = "SKIP"
         db.commit()
         return
 
@@ -105,6 +106,8 @@ if __name__ == "__main__":
 
     for seed in site_seeds:
         Page.find_or_create_page(seed, db)
-    crawl()
-    db.close()
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=6) as executor:
+        for _ in range(6):
+            executor.submit(crawl())
 
