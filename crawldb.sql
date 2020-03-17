@@ -94,11 +94,13 @@ INSERT INTO crawldb.data_type VALUES
 	('DOC'),
 	('DOCX'),
 	('PPT'),
-	('PPTX')
+	('PPTX'),
 	('Other');
 
 INSERT INTO crawldb.page_type VALUES 
 	('HTML'),
 	('BINARY'),
 	('DUPLICATE'),
-	('FRONTIER');
+	('FRONTIER'),
+	('CRAWLING'),
+	('OUT_OF_SCOPE');

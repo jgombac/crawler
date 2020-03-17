@@ -20,6 +20,17 @@ class Site(Base):
 
     pages = relationship("Page", back_populates="site")
 
+    @staticmethod
+    def find_or_create_site(domain, db):
+        site = db.query(Site).filter(Site.domain == domain).first()
+        if not site:
+            site = Site(domain=domain)
+            db.add(site)
+            if not site.robots_content:
+                site.retrieve_site_robots()
+            db.commit()
+        return site
+
     def retrieve_site_robots(self):
         url = url_normalize(self.domain + "/robots.txt")
         rp = RobotFileParser()
@@ -84,6 +95,22 @@ class Page(Base):
         secondaryjoin=link_table.c.to_page == id,
         back_populates="from_page")
 
+    @staticmethod
+    def find_or_create_page(url, db):
+        existing_page = db.query(Page).filter(Page.url == url).first()
+        if not existing_page:
+            # Find or create the site of the page
+            normalized_url = url_normalize(url)
+            domain = get_domain(normalized_url)
+            site = Site.find_or_create_site(domain, db)
+            # Skip the page, if the site's robots.txt doesn't allow it
+            if not site.get_robots().can_fetch(USER_AGENT, url):
+                return
+            existing_page = Page(url=url, site=site, page_type_code="FRONTIER")
+            db.add(existing_page)
+            db.commit()
+        return existing_page
+
     def retrieve_page(self, db):
         url = url_normalize(self.url)
         self.domain = get_domain(url)
@@ -137,10 +164,7 @@ class Page(Base):
         links = self.get_links(browser)
 
         for link in links:
-            existing_page = db.query(Page).filter(Page.url == link).first()
-            if not existing_page:
-                existing_page = Page(url=link, page_type_code="FRONTIER")
-                db.add(existing_page)
+            existing_page = Page.find_or_create_page(link, db)
             if existing_page not in self.to_page:
                 self.to_page.append(existing_page)
 

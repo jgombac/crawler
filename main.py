@@ -6,74 +6,60 @@ from url_normalize import url_normalize
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy import create_engine
 from socket import gethostbyname, gaierror
+import concurrent.futures
+import threading
+
 
 import warnings
 warnings.filterwarnings("ignore")
-
+page_selection_lock = threading.Lock()
 DEFAULT_REQUEST_DELAY = 5
 
-CONNECTION_STRING = "postgres://postgres:postgres@localhost:5432/crawldb"
+CONNECTION_STRING = "postgres://postgres:postgres@192.168.99.100:5432/crawldb"
 ENGINE = create_engine(CONNECTION_STRING, echo=False)
 Session = sessionmaker(bind=ENGINE)
 db = Session()
 db.execute("SET search_path TO crawldb")
 
 
-site_seeds = ["gov.si"]  # "evem.gov.si", "e-uprava.gov.si", "e-prostor.gov.si"]
+site_seeds = ["www.gov.si"]  # "evem.gov.si", "e-uprava.gov.si", "e-prostor.gov.si"]
 
 
 def get_first_in_queue():
-    page = db\
-        .query(Page)\
-        .filter(and_(Page.page_type_code == "FRONTIER", Page.http_status_code == None))\
-        .order_by(Page.id).first()
-    return page
-
-
-def crawl_pages(urls):
-    for url in urls:
-        url = url_normalize(url)
-        domain = get_domain(url)
-        site = db.query(Site).filter(Site.domain == domain).first()
-
-        if not site:
-            site = Site(domain=domain)
-            db.add(site)
-        if not site.robots_content:
-            site.retrieve_site_robots()
-
-        if not site.get_robots().can_fetch(USER_AGENT, url):
-            db.commit()
-            return
-
-        page = db.query(Page).filter(Page.url == url).first()
-
-        if not page:
-            page = Page(url=url, page_type_code="FRONTIER")
-            db.add(page)
-
-        if page.page_type_code != "FRONTIER":
-            db.commit()
-            return
-
-        delay = site.get_robots().crawl_delay(USER_AGENT)
-        if not delay:
-            delay = DEFAULT_REQUEST_DELAY
-
-        # Don't crawl the site if we can't find it's IP
-        if not wait_before_crawling(page, delay):
-            db.commit()
-            return
-
-        page.retrieve_page(db)
+    with page_selection_lock:
+        page = db\
+            .query(Page)\
+            .filter(and_(Page.page_type_code == "FRONTIER", Page.http_status_code == None))\
+            .order_by(Page.id).first()
+        page.page_type_code = "CRAWLING"
         db.commit()
+        print(f"Set {page.url} to {page.page_type_code}")
+        return page
+
+
+def crawl_page(page):
+    # Don't crawls the page if it's not from a seed site
+    if page.page_type_code != "CRAWLING":
+        return
+
+    delay = page.site.get_robots().crawl_delay(USER_AGENT)
+    if not delay:
+        delay = DEFAULT_REQUEST_DELAY
+
+    # Don't crawl the site if we can't find it's IP
+    if not wait_before_crawling(page, delay):
+        db.commit()
+        return
+
+    page.retrieve_page(db)
+    db.commit()
 
 
 def crawl():
     page = get_first_in_queue()
 
     while page:
-        crawl_pages([page.url])
+        crawl_page(page)
         page = get_first_in_queue()
 
 
@@ -116,7 +102,9 @@ def wait_before_crawling(page: Page, delay):
 
 
 if __name__ == "__main__":
-    crawl_pages(site_seeds)
+
+    for seed in site_seeds:
+        Page.find_or_create_page(seed, db)
     crawl()
     db.close()
 
