@@ -18,7 +18,7 @@ page_selection_lock = threading.Lock()
 ACTIVE_THREADS = 0
 DEFAULT_REQUEST_DELAY = 5
 
-CONNECTION_STRING = "postgres://postgres:postgres@192.168.99.100:5432/crawldb"
+CONNECTION_STRING = "postgres://postgres:postgres@localhost:5432/crawldb"
 ENGINE = create_engine(CONNECTION_STRING, echo=False)
 Session = scoped_session(sessionmaker(bind=ENGINE))
 dbGlobal = Session()
@@ -89,6 +89,7 @@ def crawl():
             crawl_page(page, db)
         except Exception as ex:
             print(f"{threading.currentThread().ident}: ERROR crawling page {page.url}")
+            print(f"{threading.currentThread().ident}: {ex}")
             page.page_type_code = "ERROR"
             db.commit()
 
