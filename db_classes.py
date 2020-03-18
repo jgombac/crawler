@@ -52,14 +52,18 @@ class Site(Base):
 
     def retrieve_sitemap_content(self, robots):
         url = url_normalize(robots.site_maps()[0])
-        browser = get_browser()
-        response = browser.request("GET", url)
-        if response.status_code == 200:
-            if isinstance(response.content, str):
-                self.sitemap_content = response.content
-            else:
-                self.sitemap_content = response.content.decode("utf-8")
-        browser.quit()
+        browser = get_phantom()
+        try:
+            response = browser.request("GET", url)
+            if response.status_code == 200:
+                if isinstance(response.content, str):
+                    self.sitemap_content = response.content
+                else:
+                    self.sitemap_content = response.content.decode("utf-8")
+        except Exception as ex:
+            pass
+        finally:
+            browser.quit()
 
     def get_robots(self):
         rp = RobotFileParser()
@@ -120,19 +124,17 @@ class Page(Base):
                 db.commit()
         return existing_page
 
-    def retrieve_page(self, db):
+    def retrieve_page(self, db, phantom, browser):
         url = url_normalize(self.url)
         print(f"{threading.currentThread().ident}: Crawling {url}")
         self.domain = get_domain(url)
-        browser = get_phantom()
         try:
-            response = browser.request("HEAD", url, page_load_timeout=10)
+            response = phantom.request("HEAD", url, page_load_timeout=10)
         except TimeoutException as te:
             print(f"{threading.currentThread().ident}: HEAD TimeoutException on {url}")
             self.http_status_code = 408
             self.accessed_time = get_current_datetime()
             self.page_type_code = "ERROR"
-            browser.quit()
             return
 
         self.http_status_code = response.status_code
@@ -140,7 +142,6 @@ class Page(Base):
 
         if response.status_code > 300:
             self.page_type_code = "ERROR"
-            browser.quit()
             return
 
         content_type = get_content_type(response.headers)
@@ -149,28 +150,23 @@ class Page(Base):
 
         if content_type != "text/html":
             self.page_data = [PageData(page=self, data_type_code=get_page_data_type(content_type))]
-            browser.quit()
             return
         try:
-            browser.quit()
-            browser = get_browser()
             browser.get(url)
 
         except TimeoutException as te:
             print(f"{threading.currentThread().ident}: GET TimeoutException on page {url}")
             self.http_status_code = 408
             self.page_type_code = "ERROR"
-            browser.quit()
             return
 
         self.accessed_time = datetime.fromtimestamp(datetime.timestamp(datetime.now()))
 
-        self.set_canonical_link(browser, db)
+        self.set_canonical_link(browser, db, phantom)
 
         # If page has a canonical link, mark it as duplicate, to remove it from frontier
         if self.canonical_link:
             self.page_type_code = "DUPLICATE"
-            browser.quit()
             return
 
         self.html_content = self.get_html_content(browser)
@@ -190,7 +186,6 @@ class Page(Base):
                   browser.find_elements_by_xpath("//img[@src]")]
 
         self.images = [Image(page=self, filename=img if not img.startswith("data") else "") for img in images]
-        browser.quit()
 
     def get_links(self, browser):
         links = [link.get_attribute("href") for link in
@@ -212,7 +207,7 @@ class Page(Base):
             return browser.page_source
         return browser.page_source.decode("utf-8")
 
-    def set_canonical_link(self, browser, db):
+    def set_canonical_link(self, browser, db, phantom):
         canonical = browser.find_elements_by_xpath("//link[@rel='canonical']")
         if canonical:
             link = url_normalize(canonical[0].get_attribute("href"))
@@ -223,7 +218,7 @@ class Page(Base):
                     original_page = Page(url=link, page_type_code="FRONTIER")
                     db.add(original_page)
                 if original_page.page_type_code == "FRONTIER":
-                    original_page.retrieve_page(db)
+                    original_page.retrieve_page(db, phantom, browser)
                 self.canonical_link = link
 
     def set_page_type_code(self, content_type, db):

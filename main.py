@@ -18,7 +18,7 @@ page_selection_lock = threading.Lock()
 ACTIVE_THREADS = 0
 DEFAULT_REQUEST_DELAY = 5
 
-CONNECTION_STRING = "postgres://postgres:postgres@localhost:5432/crawldb"
+CONNECTION_STRING = "postgres://postgres:postgres@192.168.99.100:5432/crawldb"
 ENGINE = create_engine(CONNECTION_STRING, echo=False)
 Session = scoped_session(sessionmaker(bind=ENGINE))
 dbGlobal = Session()
@@ -76,8 +76,16 @@ def crawl_page(page, db):
         db.commit()
         return
 
-    page.retrieve_page(db)
-    db.commit()
+    phantom = get_phantom()
+    browser = get_browser()
+    try:
+        page.retrieve_page(db, phantom, browser)
+    except Exception as ex:
+        pass
+    finally:
+        browser.quit()
+        phantom.quit()
+        db.commit()
 
 
 def crawl():
