@@ -38,24 +38,19 @@ def get_first_in_queue(db):
 
         page = db\
             .query(Page) \
-            .filter(and_(Page.page_type_code == "FRONTIER", Page.http_status_code == None, Page.depth == depth, Page.site_id.notin_(not_available)))\
+            .filter(and_(Page.page_type_code == "FRONTIER", Page.depth <= depth, Page.site_id.notin_(not_available)))\
             .order_by(Page.id).first()
 
-        if not page:
+        while not page:
             page = db \
                 .query(Page) \
                 .filter(
-                and_(Page.page_type_code == "FRONTIER", Page.http_status_code == None, Page.depth == depth)) \
+                and_(Page.page_type_code == "FRONTIER", Page.depth <= depth)) \
                 .order_by(Page.id).first()
-        if not page:
             depth += 1
-            page = db \
-                .query(Page) \
-                .filter(
-                and_(Page.page_type_code == "FRONTIER", Page.http_status_code == None, Page.depth == depth)) \
-                .order_by(Page.id).first()
-        if not page:
-            return None
+
+            if depth > 6:
+                return None
         page.page_type_code = "CRAWLING"
         db.commit()
     return page
@@ -96,8 +91,7 @@ def crawl():
         try:
             crawl_page(page, db)
         except Exception as ex:
-            print(f"{threading.currentThread().ident}: ERROR crawling page {page.url}")
-            print(f"{threading.currentprintThread().ident}: {ex}")
+            print(f"{threading.currentThread().ident}: ERROR crawling page {page.url} \n {ex}")
             page.page_type_code = "ERROR"
             db.commit()
 
