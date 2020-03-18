@@ -27,9 +27,16 @@ CREATE TABLE crawldb.page (
 	http_status_code     integer  ,
 	accessed_time        timestamp  ,
 	checksum             bytea  ,
+	depth                integer  ,
 	CONSTRAINT pk_page_id PRIMARY KEY ( id ),
 	CONSTRAINT unq_url_idx UNIQUE ( url ) 
  );
+
+CREATE TABLE crawldb.crawl_depth (
+    id                   serial  NOT NULL,
+    depth                integer  ,
+    CONSTRAINT pk_crawl_depth_id PRIMARY KEY ( id )
+);
 
 CREATE INDEX "idx_page_site_id" ON crawldb.page ( site_id );
 
@@ -103,4 +110,8 @@ INSERT INTO crawldb.page_type VALUES
 	('DUPLICATE'),
 	('FRONTIER'),
 	('CRAWLING'),
-	('SKIP');
+	('SKIP'),
+	('ERROR');
+
+INSERT INTO crawldb.crawl_depth VALUES
+    (0, 0);

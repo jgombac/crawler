@@ -3,12 +3,13 @@ from time import sleep
 from db_classes import *
 from utils import *
 from url_normalize import url_normalize
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.orm import sessionmaker, scoped_session
 from sqlalchemy import create_engine
 from socket import gethostbyname, gaierror
 import concurrent.futures
 import threading
 import time
+import sys
 
 
 import warnings
@@ -19,7 +20,7 @@ DEFAULT_REQUEST_DELAY = 5
 
 CONNECTION_STRING = "postgres://postgres:postgres@192.168.99.100:5432/crawldb"
 ENGINE = create_engine(CONNECTION_STRING, echo=False)
-Session = sessionmaker(bind=ENGINE)
+Session = scoped_session(sessionmaker(bind=ENGINE))
 db = Session()
 db.execute("SET search_path TO crawldb")
 
@@ -27,15 +28,36 @@ db.execute("SET search_path TO crawldb")
 site_seeds = ["www.gov.si", "evem.gov.si", "e-uprava.gov.si", "e-prostor.gov.si"]
 
 
+
+
 def get_first_in_queue():
     with page_selection_lock:
+        not_available = db.query(Page).filter(Page.page_type_code == "CRAWLING").all()
+        not_available = [pg.site_id for pg in not_available]
+        depth = db.query(Page).filter(Page.page_type_code == "FRONTIER").order_by(Page.id).first().depth
+
         page = db\
-            .query(Page)\
-            .filter(and_(Page.page_type_code == "FRONTIER", Page.http_status_code == None))\
+            .query(Page) \
+            .filter(and_(Page.page_type_code == "FRONTIER", Page.http_status_code == None, Page.depth == depth, Page.site_id.notin_(not_available)))\
             .order_by(Page.id).first()
+
+        if not page:
+            page = db \
+                .query(Page) \
+                .filter(
+                and_(Page.page_type_code == "FRONTIER", Page.http_status_code == None, Page.depth == depth)) \
+                .order_by(Page.id).first()
+        if not page:
+            depth += 1
+            page = db \
+                .query(Page) \
+                .filter(
+                and_(Page.page_type_code == "FRONTIER", Page.http_status_code == None, Page.depth == depth)) \
+                .order_by(Page.id).first()
+        if not page:
+            return None
         page.page_type_code = "CRAWLING"
         db.commit()
-    print(f"Crawling {page.url} from thread {threading.currentThread().ident}")
     return page
 
 
@@ -59,17 +81,17 @@ def crawl_page(page):
 
 
 def crawl():
-    global ACTIVE_THREADS
     page = get_first_in_queue()
-    if page:
-        ACTIVE_THREADS += 1
-        crawl_page(page)
-        ACTIVE_THREADS -= 1
+    while page:
+        try:
+            crawl_page(page)
+        except Exception as ex:
+            print(f"{threading.currentThread().ident}: ERROR crawling page {page.url}")
+            page.page_type_code = "ERROR"
+            db.commit()
 
-    # while page:
-    #
-    #
-    #     page = get_first_in_queue()
+        page = get_first_in_queue()
+
 
 
 
@@ -97,10 +119,9 @@ def wait_before_crawling(page: Page, delay):
 
         if time_elapsed < delay:
             wait_time = delay - time_elapsed
-            print(f"Waiting for {wait_time:.2f} seconds before crawling {page.url}")
             sleep(wait_time)
         else:
-            print(f"{time_elapsed} seconds have elapsed since fetching {visited_ip.ip}. Crawling...")
+            pass
 
         visited_ip.last_visited = get_current_datetime()
 
@@ -111,18 +132,36 @@ def wait_before_crawling(page: Page, delay):
         return False
 
 
+def run_workers(num):
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=num) as executor:
+        results = []
+
+        while True:
+            while len(executor._threads) < num:
+                time.sleep(1)
+                results.append(executor.submit(crawl))
+            concurrent.futures.wait(results, timeout=30, return_when=concurrent.futures.ALL_COMPLETED)
+
+
 
 if __name__ == "__main__":
 
-    for seed in site_seeds:
-        Page.find_or_create_page(seed, db)
+    crawling = db.query(Page).filter(Page.page_type_code == "CRAWLING").all()
+    for pg in crawling:
+        pg.page_type_code = "FRONTIER"
+    db.commit()
 
-    with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
-        while True:
-            print("ACTIVE:", ACTIVE_THREADS)
-            time.sleep(1)
-            if ACTIVE_THREADS < 10:
-                time.sleep(1)
-                executor.submit(crawl)
+    for seed in site_seeds:
+        Page.find_or_create_page(seed, db, 0)
+
+    # crawl()
+    run_workers(6)
+        # while True:
+        #     print("ACTIVE:", ACTIVE_THREADS)
+        #     time.sleep(1)
+        #     if ACTIVE_THREADS < 10:
+        #         time.sleep(1)
+        #         executor.submit(crawl)
 
     print("Done?")

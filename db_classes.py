@@ -6,6 +6,9 @@ from hashlib import sha256
 from selenium.common.exceptions import TimeoutException
 from datetime import datetime
 from utils import *
+import threading
+
+page_selection_lock = threading.Lock()
 
 Base = declarative_base()
 
@@ -22,13 +25,14 @@ class Site(Base):
 
     @staticmethod
     def find_or_create_site(domain, db):
-        site = db.query(Site).filter(Site.domain == domain).first()
-        if not site:
-            site = Site(domain=domain)
-            db.add(site)
-            if not site.robots_content:
-                site.retrieve_site_robots()
-            db.commit()
+        with page_selection_lock:
+            site = db.query(Site).filter(Site.domain == domain).first()
+            if not site:
+                site = Site(domain=domain)
+                db.add(site)
+                if not site.robots_content:
+                    site.retrieve_site_robots()
+                db.commit()
         return site
 
     def retrieve_site_robots(self):
@@ -79,6 +83,7 @@ class Page(Base):
     checksum = Column(LargeBinary)
     canonical_link = ""
     domain = ""
+    depth = Column(Integer, default=0)
 
     site = relationship("Site", back_populates="pages")
     images = relationship("Image", back_populates="page")
@@ -97,41 +102,42 @@ class Page(Base):
         back_populates="from_page")
 
     @staticmethod
-    def find_or_create_page(url, db):
-        existing_page = db.query(Page).filter(Page.url == url).first()
-        if not existing_page:
-            # Find or create the site of the page
-            normalized_url = url_normalize(url)
-            domain = get_domain(normalized_url)
-            site = Site.find_or_create_site(domain, db)
-            # Skip the page, if the site's robots.txt doesn't allow it
-            if not site.get_robots().can_fetch(USER_AGENT, url):
-                return
-            existing_page = Page(url=url, site=site, page_type_code="FRONTIER")
-            db.add(existing_page)
-            db.commit()
+    def find_or_create_page(url, db, depth):
+        with page_selection_lock:
+            existing_page = db.query(Page).filter(Page.url == url).first()
+            if not existing_page:
+                # Find or create the site of the page
+                normalized_url = url_normalize(url)
+                domain = get_domain(normalized_url)
+                site = Site.find_or_create_site(domain, db)
+                # Skip the page, if the site's robots.txt doesn't allow it
+                if not site.get_robots().can_fetch(USER_AGENT, url):
+                    return
+                existing_page = Page(url=url, site=site, page_type_code="FRONTIER", depth=depth)
+                db.add(existing_page)
+                db.commit()
         return existing_page
 
     def retrieve_page(self, db):
         url = url_normalize(self.url)
+        print(f"{threading.currentThread().ident}: Crawling {url}")
         self.domain = get_domain(url)
-        print(f"Fetching page {url}")
         browser = get_browser()
         try:
             response = browser.request("HEAD", url, page_load_timeout=10)
         except TimeoutException as te:
-            print(f"HEAD TimeoutException on {url}")
+            print(f"{threading.currentThread().ident}: HEAD TimeoutException on {url}")
             self.http_status_code = 408
             self.accessed_time = get_current_datetime()
-            self.page_type_code = "DUPLICATE"
+            self.page_type_code = "ERROR"
             browser.quit()
             return
 
         self.http_status_code = response.status_code
         self.accessed_time = get_current_datetime()
 
-        if response.status_code != 200:
-            self.page_type_code = "DUPLICATE"
+        if response.status_code > 300:
+            self.page_type_code = "ERROR"
             browser.quit()
             return
 
@@ -146,9 +152,9 @@ class Page(Base):
         try:
             browser.get(url)
         except TimeoutException as te:
-            print(f"GET TimeoutException on page {url}")
+            print(f"{threading.currentThread().ident}: GET TimeoutException on page {url}")
             self.http_status_code = 408
-            self.page_type_code = "DUPLICATE"
+            self.page_type_code = "ERROR"
             browser.quit()
             return
 
@@ -171,7 +177,7 @@ class Page(Base):
         links = self.get_links(browser)
 
         for link in links:
-            existing_page = Page.find_or_create_page(link, db)
+            existing_page = Page.find_or_create_page(link, db, self.depth+1)
             if existing_page not in self.to_page:
                 self.to_page.append(existing_page)
 
@@ -269,3 +275,10 @@ class VisitedIP(Base):
 
     ip = Column(String, primary_key=True)
     last_visited = Column(TIMESTAMP)
+
+
+class CrawlDepth(Base):
+    __tablename__ = "crawl_depth"
+
+    id = Column(String, primary_key=True)
+    depth = Column(Integer, default=0)
