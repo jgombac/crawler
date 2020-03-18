@@ -21,8 +21,8 @@ DEFAULT_REQUEST_DELAY = 5
 CONNECTION_STRING = "postgres://postgres:postgres@192.168.99.100:5432/crawldb"
 ENGINE = create_engine(CONNECTION_STRING, echo=False)
 Session = scoped_session(sessionmaker(bind=ENGINE))
-db = Session()
-db.execute("SET search_path TO crawldb")
+dbGlobal = Session()
+dbGlobal.execute("SET search_path TO crawldb")
 
 
 site_seeds = ["www.gov.si", "evem.gov.si", "e-uprava.gov.si", "e-prostor.gov.si"]
@@ -30,7 +30,7 @@ site_seeds = ["www.gov.si", "evem.gov.si", "e-uprava.gov.si", "e-prostor.gov.si"
 
 
 
-def get_first_in_queue():
+def get_first_in_queue(db):
     with page_selection_lock:
         not_available = db.query(Page).filter(Page.page_type_code == "CRAWLING").all()
         not_available = [pg.site_id for pg in not_available]
@@ -61,7 +61,7 @@ def get_first_in_queue():
     return page
 
 
-def crawl_page(page):
+def crawl_page(page, db):
     # Don't crawls the page if it's not from a seed site
     if page.page_type_code != "CRAWLING":
         return
@@ -71,7 +71,7 @@ def crawl_page(page):
         delay = DEFAULT_REQUEST_DELAY
 
     # Don't crawl the site if we can't find it's IP
-    if not wait_before_crawling(page, delay):
+    if not wait_before_crawling(page, delay, db):
         page.page_type_code = "SKIP"
         db.commit()
         return
@@ -81,21 +81,23 @@ def crawl_page(page):
 
 
 def crawl():
-    page = get_first_in_queue()
+    db = Session()
+    db.execute("SET search_path TO crawldb")
+    page = get_first_in_queue(db)
     while page:
         try:
-            crawl_page(page)
+            crawl_page(page, db)
         except Exception as ex:
             print(f"{threading.currentThread().ident}: ERROR crawling page {page.url}")
             page.page_type_code = "ERROR"
             db.commit()
 
-        page = get_first_in_queue()
+        page = get_first_in_queue(db)
 
 
 
 
-def wait_before_crawling(page: Page, delay):
+def wait_before_crawling(page: Page, delay, db):
     """
     Checks when a page from this IP was last crawled and waits for the
     crawl delay if necessary.
@@ -147,21 +149,14 @@ def run_workers(num):
 
 if __name__ == "__main__":
 
-    crawling = db.query(Page).filter(Page.page_type_code == "CRAWLING").all()
+    crawling = dbGlobal.query(Page).filter(Page.page_type_code == "CRAWLING").all()
     for pg in crawling:
         pg.page_type_code = "FRONTIER"
-    db.commit()
+    dbGlobal.commit()
 
     for seed in site_seeds:
-        Page.find_or_create_page(seed, db, 0)
+        Page.find_or_create_page(seed, dbGlobal, 0)
 
-    # crawl()
     run_workers(6)
-        # while True:
-        #     print("ACTIVE:", ACTIVE_THREADS)
-        #     time.sleep(1)
-        #     if ACTIVE_THREADS < 10:
-        #         time.sleep(1)
-        #         executor.submit(crawl)
 
     print("Done?")

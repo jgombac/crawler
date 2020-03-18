@@ -1,32 +1,52 @@
 from datetime import datetime
-
 from selenium.webdriver.common.desired_capabilities import DesiredCapabilities
 from selenium.webdriver.firefox.options import Options as FirefoxOptions
+from selenium.webdriver.chrome.options import Options as ChromeOptions
 from selenium.webdriver import FirefoxProfile
 from seleniumrequests import PhantomJS, Firefox
 from urllib.parse import urlparse
 from url_normalize import url_normalize
+from selenium import webdriver
+from selenium.webdriver.common.desired_capabilities import DesiredCapabilities
 import os
+from selenium.webdriver.support.ui import WebDriverWait
 USER_AGENT = "fri-ieps-rmj2"
 
 
-def get_browser():
+def get_phantom():
     caps = DesiredCapabilities.PHANTOMJS
     caps["phantomjs.page.settings.userAgent"] = USER_AGENT
     caps["pageLoadStrategy"] = "eager"
     browser = PhantomJS(desired_capabilities=caps, service_args=['--ignore-ssl-errors=true'])
     browser.set_page_load_timeout(10)
+    WebDriverWait(browser, 10).until(lambda driver: driver.execute_script('return document.readyState') != 'loading')
     return browser
 
-    # caps = DesiredCapabilities().FIREFOX
-    # options = FirefoxOptions()
-    # options.add_argument("--headless")
-    # caps["pageLoadStrategy"] = "eager"  # interactive
-    # profile = FirefoxProfile()
-    # profile.set_preference("dom.disable_beforeunload", True)
-    # browser = Firefox(desired_capabilities=caps,firefox_profile=profile, options=options)
-    # browser.set_page_load_timeout(5)
-    # return browser
+def get_firefox():
+    caps = DesiredCapabilities().FIREFOX
+    options = FirefoxOptions()
+    options.add_argument("--headless")
+    caps["pageLoadStrategy"] = "eager"  # interactive
+    profile = FirefoxProfile()
+    profile.set_preference("dom.disable_beforeunload", True)
+    browser = Firefox(desired_capabilities=caps,firefox_profile=profile, options=options)
+    browser.set_page_load_timeout(5)
+    return browser
+
+def get_browser():
+    return get_firefox()
+    return get_phantom()
+
+
+    caps = DesiredCapabilities().CHROME
+    caps["pageLoadStrategy"] = "eager"  #  interactive
+    options = ChromeOptions()
+    options.add_argument("--headless")
+    driver = webdriver.Chrome(desired_capabilities=caps, options=options)
+    driver.set_page_load_timeout(5)
+    return driver
+
+
 
 
 def get_content_type(headers):

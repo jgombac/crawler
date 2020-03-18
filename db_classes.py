@@ -7,6 +7,7 @@ from selenium.common.exceptions import TimeoutException
 from datetime import datetime
 from utils import *
 import threading
+from selenium.webdriver.support.ui import WebDriverWait
 
 page_selection_lock = threading.Lock()
 
@@ -25,14 +26,14 @@ class Site(Base):
 
     @staticmethod
     def find_or_create_site(domain, db):
-        with page_selection_lock:
-            site = db.query(Site).filter(Site.domain == domain).first()
-            if not site:
-                site = Site(domain=domain)
-                db.add(site)
-                if not site.robots_content:
-                    site.retrieve_site_robots()
-                db.commit()
+        # with page_selection_lock:
+        site = db.query(Site).filter(Site.domain == domain).first()
+        if not site:
+            site = Site(domain=domain)
+            db.add(site)
+            if not site.robots_content:
+                site.retrieve_site_robots()
+            db.commit()
         return site
 
     def retrieve_site_robots(self):
@@ -122,7 +123,7 @@ class Page(Base):
         url = url_normalize(self.url)
         print(f"{threading.currentThread().ident}: Crawling {url}")
         self.domain = get_domain(url)
-        browser = get_browser()
+        browser = get_phantom()
         try:
             response = browser.request("HEAD", url, page_load_timeout=10)
         except TimeoutException as te:
@@ -150,7 +151,10 @@ class Page(Base):
             browser.quit()
             return
         try:
+            browser.quit()
+            browser = get_browser()
             browser.get(url)
+
         except TimeoutException as te:
             print(f"{threading.currentThread().ident}: GET TimeoutException on page {url}")
             self.http_status_code = 408
