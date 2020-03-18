@@ -19,8 +19,8 @@ class Site(Base):
 
     id = Column(Integer, primary_key=True)
     domain = Column(String)
-    robots_content = Column(String)
-    sitemap_content = Column(String)
+    robots_content = Column(String, default="")
+    sitemap_content = Column(String, default="")
 
     pages = relationship("Page", back_populates="site")
 
@@ -50,6 +50,7 @@ class Site(Base):
             print(f"ERROR retrieving robots.txt for {self.domain}")
             print(e)
 
+
     def retrieve_sitemap_content(self, robots):
         url = url_normalize(robots.site_maps()[0])
         browser = get_phantom()
@@ -67,7 +68,10 @@ class Site(Base):
 
     def get_robots(self):
         rp = RobotFileParser()
-        rp.parse(self.robots_content)
+        if self.robots_content:
+            rp.parse(self.robots_content)
+        else:
+            rp.allow_all = True
         return rp
 
 
