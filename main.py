@@ -89,7 +89,7 @@ def crawl():
             crawl_page(page, db)
         except Exception as ex:
             print(f"{threading.currentThread().ident}: ERROR crawling page {page.url}")
-            print(f"{threading.currentThread().ident}: {ex}")
+            print(f"{threading.currentprintThread().ident}: {ex}")
             page.page_type_code = "ERROR"
             db.commit()
 
@@ -131,6 +131,7 @@ def wait_before_crawling(page: Page, delay, db):
         return True
 
     except gaierror as e:
+        print("ERROR retrieving domain IP")
         print(e)
         return False
 

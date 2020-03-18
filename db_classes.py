@@ -47,6 +47,7 @@ class Site(Base):
                 self.retrieve_sitemap_content(rp)
         except Exception as e:
             self.robots_content = ""
+            print(f"ERROR retrieving robots.txt for {self.domain}")
             print(e)
 
     def retrieve_sitemap_content(self, robots):
