@@ -71,15 +71,15 @@ def crawl_page(page, db):
         db.commit()
         return
 
-    phantom = get_phantom()
+
     browser = get_browser()
     try:
-        page.retrieve_page(db, phantom, browser)
+        page.retrieve_page(db, browser)
     except Exception as ex:
         pass
     finally:
         browser.quit()
-        phantom.quit()
+
         db.commit()
 
 

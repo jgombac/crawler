@@ -53,9 +53,8 @@ class Site(Base):
 
     def retrieve_sitemap_content(self, robots):
         url = url_normalize(robots.site_maps()[0])
-        browser = get_phantom()
         try:
-            response = browser.request("GET", url)
+            response = requests.get(url, verify=False)
             if response.status_code == 200:
                 if isinstance(response.content, str):
                     self.sitemap_content = response.content
@@ -63,8 +62,6 @@ class Site(Base):
                     self.sitemap_content = response.content.decode("utf-8")
         except Exception as ex:
             pass
-        finally:
-            browser.quit()
 
     def get_robots(self):
         rp = RobotFileParser()
@@ -128,14 +125,12 @@ class Page(Base):
                 db.commit()
         return existing_page
 
-    def retrieve_page(self, db, phantom, browser):
+    def retrieve_page(self, db, browser):
         url = url_normalize(self.url)
         print(f"{threading.currentThread().ident}: Crawling {url}")
         self.domain = get_domain(url)
         try:
-
             response = requests.head(url, verify=False)
-            # response = phantom.request("HEAD", url, page_load_timeout=10)
         except TimeoutException as te:
             print(f"{threading.currentThread().ident}: HEAD TimeoutException on {url}")
             self.http_status_code = 408
@@ -174,7 +169,7 @@ class Page(Base):
 
         self.accessed_time = datetime.fromtimestamp(datetime.timestamp(datetime.now()))
 
-        self.set_canonical_link(browser, db, phantom)
+        self.set_canonical_link(browser, db)
 
         # If page has a canonical link, mark it as duplicate, to remove it from frontier
         if self.canonical_link:
@@ -219,7 +214,7 @@ class Page(Base):
             return browser.page_source
         return browser.page_source.decode("utf-8")
 
-    def set_canonical_link(self, browser, db, phantom):
+    def set_canonical_link(self, browser, db):
         canonical = browser.find_elements_by_xpath("//link[@rel='canonical']")
         if canonical:
             link = url_normalize(canonical[0].get_attribute("href"))
@@ -230,7 +225,7 @@ class Page(Base):
                     original_page = Page(url=link, page_type_code="FRONTIER")
                     db.add(original_page)
                 if original_page.page_type_code == "FRONTIER":
-                    original_page.retrieve_page(db, phantom, browser)
+                    original_page.retrieve_page(db, browser)
                 self.canonical_link = link
 
     def set_page_type_code(self, content_type, db):
