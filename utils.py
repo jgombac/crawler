@@ -1,7 +1,5 @@
 from datetime import datetime
-from selenium.webdriver.common.desired_capabilities import DesiredCapabilities
 from selenium.webdriver.firefox.options import Options as FirefoxOptions
-from selenium.webdriver.chrome.options import Options as ChromeOptions
 from selenium.webdriver import FirefoxProfile
 from seleniumrequests import PhantomJS, Firefox
 from urllib.parse import urlparse
@@ -35,18 +33,6 @@ def get_firefox():
 
 def get_browser():
     return get_firefox()
-    return get_phantom()
-
-
-    caps = DesiredCapabilities().CHROME
-    caps["pageLoadStrategy"] = "eager"  #  interactive
-    options = ChromeOptions()
-    options.add_argument("--headless")
-    driver = webdriver.Chrome(desired_capabilities=caps, options=options)
-    driver.set_page_load_timeout(5)
-    return driver
-
-
 
 
 def get_content_type(headers):
@@ -54,7 +40,7 @@ def get_content_type(headers):
 
 
 def clean_urls(urls):
-    return list(filter(lambda url: ("gov.si" in url or url.startswith("/")) and not url.startswith("mailto"), urls))
+    return list(filter(lambda url: ("gov.si" in get_domain(url) or url.startswith("/")) and not url.startswith("mailto") and not url.startswith("javascript"), urls))
 
 
 def get_url_onclick(attribute):

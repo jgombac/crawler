@@ -112,6 +112,3 @@ INSERT INTO crawldb.page_type VALUES
 	('CRAWLING'),
 	('SKIP'),
 	('ERROR');
-
-INSERT INTO crawldb.crawl_depth VALUES
-    (0, 0);

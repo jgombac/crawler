@@ -7,7 +7,6 @@ from selenium.common.exceptions import TimeoutException
 from datetime import datetime
 from utils import *
 import threading
-from selenium.webdriver.support.ui import WebDriverWait
 
 page_selection_lock = threading.Lock()
 
@@ -279,10 +278,3 @@ class VisitedIP(Base):
 
     ip = Column(String, primary_key=True)
     last_visited = Column(TIMESTAMP)
-
-
-class CrawlDepth(Base):
-    __tablename__ = "crawl_depth"
-
-    id = Column(String, primary_key=True)
-    depth = Column(Integer, default=0)
