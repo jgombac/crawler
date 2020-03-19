@@ -36,11 +36,11 @@ def get_browser():
 
 
 def get_content_type(headers):
-    return headers["Content-Type"].split(";")[0]
+    return headers.get("Content-Type", "None").split(";")[0]
 
 
 def clean_urls(urls):
-    return list(filter(lambda url: ("gov.si" in get_domain(url) or url.startswith("/")) and not url.startswith("mailto") and not url.startswith("javascript"), urls))
+    return list(filter(lambda url: ("gov.si" in get_domain(url) or url.startswith("/")) and not url.startswith("mailto") and not "javascript" in url, urls))
 
 
 def get_url_onclick(attribute):

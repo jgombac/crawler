@@ -7,6 +7,7 @@ from selenium.common.exceptions import TimeoutException
 from datetime import datetime
 from utils import *
 import threading
+import requests
 
 page_selection_lock = threading.Lock()
 
@@ -132,9 +133,17 @@ class Page(Base):
         print(f"{threading.currentThread().ident}: Crawling {url}")
         self.domain = get_domain(url)
         try:
-            response = phantom.request("HEAD", url, page_load_timeout=10)
+
+            response = requests.head(url, verify=False)
+            # response = phantom.request("HEAD", url, page_load_timeout=10)
         except TimeoutException as te:
             print(f"{threading.currentThread().ident}: HEAD TimeoutException on {url}")
+            self.http_status_code = 408
+            self.accessed_time = get_current_datetime()
+            self.page_type_code = "TIMEOUT"
+            return
+        except Exception as e:
+            print(f"{threading.currentThread().ident}: HEAD Exception on {url}")
             self.http_status_code = 408
             self.accessed_time = get_current_datetime()
             self.page_type_code = "TIMEOUT"
