@@ -137,7 +137,7 @@ class Page(Base):
             print(f"{threading.currentThread().ident}: HEAD TimeoutException on {url}")
             self.http_status_code = 408
             self.accessed_time = get_current_datetime()
-            self.page_type_code = "ERROR"
+            self.page_type_code = "TIMEOUT"
             return
 
         self.http_status_code = response.status_code
@@ -160,7 +160,7 @@ class Page(Base):
         except TimeoutException as te:
             print(f"{threading.currentThread().ident}: GET TimeoutException on page {url}")
             self.http_status_code = 408
-            self.page_type_code = "ERROR"
+            self.page_type_code = "TIMEOUT"
             return
 
         self.accessed_time = datetime.fromtimestamp(datetime.timestamp(datetime.now()))

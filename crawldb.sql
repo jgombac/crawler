@@ -111,4 +111,5 @@ INSERT INTO crawldb.page_type VALUES
 	('FRONTIER'),
 	('CRAWLING'),
 	('SKIP'),
-	('ERROR');
+	('ERROR'),
+	('TIMEOUT');

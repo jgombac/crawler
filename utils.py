@@ -16,7 +16,7 @@ def get_phantom():
     caps["phantomjs.page.settings.userAgent"] = USER_AGENT
     caps["pageLoadStrategy"] = "eager"
     browser = PhantomJS(desired_capabilities=caps, service_args=['--ignore-ssl-errors=true'])
-    browser.set_page_load_timeout(10)
+    browser.set_page_load_timeout(5)
     WebDriverWait(browser, 10).until(lambda driver: driver.execute_script('return document.readyState') != 'loading')
     return browser
 
@@ -28,7 +28,7 @@ def get_firefox():
     profile = FirefoxProfile()
     profile.set_preference("dom.disable_beforeunload", True)
     browser = Firefox(desired_capabilities=caps,firefox_profile=profile, options=options)
-    browser.set_page_load_timeout(5)
+    browser.set_page_load_timeout(6)
     return browser
 
 def get_browser():

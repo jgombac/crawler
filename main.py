@@ -18,7 +18,7 @@ page_selection_lock = threading.Lock()
 ACTIVE_THREADS = 0
 DEFAULT_REQUEST_DELAY = 5
 
-CONNECTION_STRING = "postgres://postgres:postgres@192.168.99.100:5432/crawldb"
+CONNECTION_STRING = "postgres://postgres:postgres@localhost:5432/crawldb"
 ENGINE = create_engine(CONNECTION_STRING, echo=False)
 Session = scoped_session(sessionmaker(bind=ENGINE))
 dbGlobal = Session()
@@ -122,7 +122,7 @@ def wait_before_crawling(page: Page, delay, db):
 
         time_elapsed = current_time - date_to_timestamp(visited_ip.last_visited)
 
-        if time_elapsed < delay:
+        if time_elapsed < delay-1:
             wait_time = delay - time_elapsed
             sleep(wait_time)
         else:
@@ -147,6 +147,7 @@ def run_workers(num):
             while len(executor._threads) < num:
                 time.sleep(1)
                 results.append(executor.submit(crawl))
+            time.sleep(1)
             concurrent.futures.wait(results, timeout=30, return_when=concurrent.futures.ALL_COMPLETED)
 
 
