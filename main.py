@@ -18,7 +18,7 @@ page_selection_lock = threading.Lock()
 ACTIVE_THREADS = 0
 DEFAULT_REQUEST_DELAY = 5
 
-CONNECTION_STRING = "postgres://postgres:postgres@localhost:5432/crawldb"
+CONNECTION_STRING = "postgres://postgres:postgres@192.168.99.100:5432/crawldb"
 ENGINE = create_engine(CONNECTION_STRING, echo=False)
 Session = scoped_session(sessionmaker(bind=ENGINE))
 dbGlobal = Session()
@@ -56,7 +56,7 @@ def get_first_in_queue(db):
     return page
 
 
-def crawl_page(page, db):
+def crawl_page(page, db, browser):
     # Don't crawls the page if it's not from a seed site
     if page.page_type_code != "CRAWLING":
         return
@@ -72,30 +72,35 @@ def crawl_page(page, db):
         return
 
 
-    browser = get_browser()
+    #browser = get_browser()
     try:
         page.retrieve_page(db, browser)
     except Exception as ex:
         pass
     finally:
-        browser.quit()
+        #browser.quit()
 
         db.commit()
 
 
 def crawl():
     db = Session()
+    browser = get_browser()
     db.execute("SET search_path TO crawldb")
     page = get_first_in_queue(db)
     while page:
         try:
-            crawl_page(page, db)
+            crawl_page(page, db, browser)
         except Exception as ex:
             print(f"{threading.currentThread().ident}: ERROR crawling page {page.url} \n {ex}")
             page.page_type_code = "ERROR"
             db.commit()
+            browser.quit()
+            browser = get_browser()
 
         page = get_first_in_queue(db)
+
+    browser.quit()
 
 
 
@@ -122,7 +127,7 @@ def wait_before_crawling(page: Page, delay, db):
 
         time_elapsed = current_time - date_to_timestamp(visited_ip.last_visited)
 
-        if time_elapsed < delay-1:
+        if time_elapsed < delay:
             wait_time = delay - time_elapsed
             sleep(wait_time)
         else:

@@ -54,7 +54,7 @@ class Site(Base):
     def retrieve_sitemap_content(self, robots):
         url = url_normalize(robots.site_maps()[0])
         try:
-            response = requests.get(url, verify=False)
+            response = requests.get(url, verify=False, timeout=5)
             if response.status_code == 200:
                 if isinstance(response.content, str):
                     self.sitemap_content = response.content
@@ -130,7 +130,7 @@ class Page(Base):
         print(f"{threading.currentThread().ident}: Crawling {url}")
         self.domain = get_domain(url)
         try:
-            response = requests.head(url, verify=False)
+            response = requests.head(url, verify=False, timeout=5)
         except TimeoutException as te:
             print(f"{threading.currentThread().ident}: HEAD TimeoutException on {url}")
             self.http_status_code = 408
@@ -186,7 +186,7 @@ class Page(Base):
 
         for link in links:
             existing_page = Page.find_or_create_page(link, db, self.depth+1)
-            if existing_page not in self.to_page:
+            if existing_page and existing_page not in self.to_page:
                 self.to_page.append(existing_page)
 
         images = [link.get_attribute("src") for link in
