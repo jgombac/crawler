@@ -156,8 +156,12 @@ def run_workers(num):
             concurrent.futures.wait(results, timeout=30, return_when=concurrent.futures.ALL_COMPLETED)
 
 
-
 if __name__ == "__main__":
+    num_workers = 6
+    if len(sys.argv) > 1:
+        num_workers = int(sys.argv[1])
+
+    print(f"Running crawler with {num_workers} workers.")
 
     crawling = dbGlobal.query(Page).filter(Page.page_type_code == "CRAWLING").all()
     for pg in crawling:
@@ -167,6 +171,6 @@ if __name__ == "__main__":
     for seed in site_seeds:
         Page.find_or_create_page(seed, dbGlobal, 0)
 
-    run_workers(6)
+    run_workers(num_workers)
 
     print("Done?")
