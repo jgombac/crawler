@@ -192,7 +192,7 @@ class Page(Base):
         images = [link.get_attribute("src") for link in
                   browser.find_elements_by_xpath("//img[@src]")]
 
-        self.images = [Image(page=self, filename=img if not img.startswith("data") else "") for img in images]
+        self.images = [Image(page=self, filename=img if not img.startswith("data") or len(img) > 255 else "") for img in images]
 
     def get_links(self, browser):
         links = [link.get_attribute("href") for link in
