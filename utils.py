@@ -40,7 +40,7 @@ def get_content_type(headers):
 
 
 def clean_urls(urls):
-    return list(filter(lambda url: ("gov.si" in get_domain(url) or url.startswith("/")) and not url.startswith("mailto") and not "javascript" in url, urls))
+    return list(filter(lambda url: (get_domain(url).endswith("gov.si") or get_domain(url).endswith("gov.si/") or url.startswith("/")) and not url.startswith("mailto") and not "javascript" in url, urls))
 
 
 def get_url_onclick(attribute):

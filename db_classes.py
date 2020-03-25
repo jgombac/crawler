@@ -192,7 +192,7 @@ class Page(Base):
         images = [link.get_attribute("src") for link in
                   browser.find_elements_by_xpath("//img[@src]")]
 
-        self.images = [Image(page=self, filename=img if not img.startswith("data") or len(img) > 255 else "") for img in images]
+        self.images = [Image(page=self, filename=img if not img.startswith("data") and len(img) < 255 else "") for img in images]
 
     def get_links(self, browser):
         links = [link.get_attribute("href") for link in
@@ -218,6 +218,8 @@ class Page(Base):
         canonical = browser.find_elements_by_xpath("//link[@rel='canonical']")
         if canonical:
             link = url_normalize(canonical[0].get_attribute("href"))
+            if len(clean_urls([link])) == 0:
+                return
             if link and link != self.url:
                 link = url_normalize(link)
                 original_page = db.query(Page).filter(Page.url == link).first()
