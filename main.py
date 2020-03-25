@@ -40,7 +40,7 @@ def get_first_in_queue(db):
         page = db\
             .query(Page) \
             .filter(and_(Page.page_type_code == "FRONTIER", Page.depth <= depth, Page.site_id.notin_(not_available)))\
-            .order_by(Page.id).first()
+            .first()
 
         while not page:
             page = db \
