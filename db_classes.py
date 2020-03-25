@@ -216,7 +216,7 @@ class Page(Base):
 
     def set_canonical_link(self, browser, db):
         canonical = browser.find_elements_by_xpath("//link[@rel='canonical']")
-        if canonical:
+        if canonical and len(clean_urls([canonical])) > 0:
             link = url_normalize(canonical[0].get_attribute("href"))
             if link and link != self.url:
                 link = url_normalize(link)
