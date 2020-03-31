@@ -33,7 +33,11 @@ site_seeds = ["www.gov.si", "evem.gov.si", "e-uprava.gov.si", "e-prostor.gov.si"
 
 def get_first_in_queue(db):
     with page_selection_lock:
-        not_available = db.query(Page).filter(Page.page_type_code == "CRAWLING").all()
+        not_available = []
+        try:
+            not_available = db.query(Page).filter(Page.page_type_code == "CRAWLING").all()
+        except Exception as e:
+            db.rollback()
         not_available = [pg.site_id for pg in not_available]
         depth = db.query(Page).filter(Page.page_type_code == "FRONTIER").order_by(Page.depth).first().depth
 
