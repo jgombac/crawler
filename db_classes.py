@@ -147,9 +147,23 @@ class Page(Base):
         self.http_status_code = response.status_code
         self.accessed_time = get_current_datetime()
 
-        if response.status_code > 300:
+        if response.status_code >= 400:
             self.page_type_code = "ERROR"
             return
+        elif response.status_code in [301, 302, 307, 308]:
+            redirect_url = response.headers.get("Location", "")
+            redirect_url = list(set(clean_urls(map(lambda x: url_normalize(self.domain + x if x.startswith("/") else x), [redirect_url]))))
+            if len(redirect_url) <= 0:
+                self.page_type_code = "ERROR"
+                return
+            redirect_url = redirect_url[0]
+            print(f"{threading.currentThread().ident}: Redirect {url} -> {redirect_url}")
+            redirect_page = Page.find_or_create_page(redirect_url, db, self.depth)
+            if redirect_page and len(self.from_page) > 0 and redirect_page not in self.from_page[0].to_page:
+                self.from_page[0].to_page.append(redirect_page)
+            db.delete(self)
+            return
+
 
         content_type = get_content_type(response.headers)
 
