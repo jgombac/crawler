@@ -73,8 +73,8 @@ class Site(Base):
 
 
 link_table = Table("link", Base.metadata,
-                   Column("from_page", Integer, ForeignKey("page.id")),
-                   Column("to_page", Integer, ForeignKey("page.id")))
+                   Column("from_page", Integer, ForeignKey("page.id", ondelete="CASCADE")),
+                   Column("to_page", Integer, ForeignKey("page.id", ondelete="CASCADE")))
 
 
 class Page(Base):
@@ -117,6 +117,8 @@ class Page(Base):
                 normalized_url = url_normalize(url)
                 domain = get_domain(normalized_url)
                 site = Site.find_or_create_site(domain, db)
+                if not site:
+                    return
                 # Skip the page, if the site's robots.txt doesn't allow it
                 if not site.get_robots().can_fetch(USER_AGENT, url):
                     return
@@ -159,8 +161,10 @@ class Page(Base):
             redirect_url = redirect_url[0]
             print(f"{threading.currentThread().ident}: Redirect {url} -> {redirect_url}")
             redirect_page = Page.find_or_create_page(redirect_url, db, self.depth)
-            if redirect_page and len(self.from_page) > 0 and redirect_page not in self.from_page[0].to_page:
-                self.from_page[0].to_page.append(redirect_page)
+            if redirect_page:
+                for from_pg in self.from_page:
+                    if redirect_page not in from_pg.to_page:
+                        from_pg.to_page.append(redirect_page)
             db.delete(self)
             return
 

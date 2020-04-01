@@ -20,7 +20,7 @@ ACTIVE_THREADS = 0
 DEFAULT_REQUEST_DELAY = 5
 
 CONNECTION_STRING = "postgres://postgres:postgres@192.168.99.100:5432/crawldb"
-ENGINE = create_engine(CONNECTION_STRING, echo=False)
+ENGINE = create_engine(CONNECTION_STRING, echo=False, connect_args={'options': '-csearch_path=crawldb'})
 Session = scoped_session(sessionmaker(bind=ENGINE))
 dbGlobal = Session()
 dbGlobal.execute("SET search_path TO crawldb")
@@ -33,12 +33,16 @@ site_seeds = ["www.gov.si", "evem.gov.si", "e-uprava.gov.si", "e-prostor.gov.si"
 
 def get_first_in_queue(db):
     with page_selection_lock:
-        not_available = []
+        crawling_results = []
         try:
-            not_available = db.query(Page).filter(Page.page_type_code == "CRAWLING").all()
+            current_crawling = db.execute("select site_id from crawldb.page where page_type_code = 'CRAWLING'")
+            crawling_results = [dict(row) for row in current_crawling]
         except Exception as e:
+            crawling_results = []
+            print("CRAWLING SELECT failed", e)
             db.rollback()
-        not_available = [pg.site_id for pg in not_available]
+        not_available = [pg['site_id'] for pg in crawling_results]
+
         depth = db.query(Page).filter(Page.page_type_code == "FRONTIER").order_by(Page.depth).first().depth
 
         page = db\
@@ -51,7 +55,7 @@ def get_first_in_queue(db):
                 .query(Page) \
                 .filter(
                 and_(Page.page_type_code == "FRONTIER", Page.depth <= depth)) \
-                .order_by(Page.id).first()
+                .first()
             depth += 1
 
             if depth > 10:
