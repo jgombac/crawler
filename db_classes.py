@@ -110,12 +110,12 @@ class Page(Base):
 
     @staticmethod
     def find_or_create_page(url, db, depth):
+        url = url_normalize(url)
         with page_selection_lock:
             existing_page = db.query(Page).filter(Page.url == url).first()
             if not existing_page:
                 # Find or create the site of the page
-                normalized_url = url_normalize(url)
-                domain = get_domain(normalized_url)
+                domain = get_domain(url)
                 site = Site.find_or_create_site(domain, db)
                 if not site:
                     return
@@ -240,12 +240,7 @@ class Page(Base):
                 return
             if link and link != self.url:
                 link = url_normalize(link)
-                original_page = db.query(Page).filter(Page.url == link).first()
-                if not original_page:
-                    original_page = Page(url=link, page_type_code="FRONTIER")
-                    db.add(original_page)
-                if original_page.page_type_code == "FRONTIER":
-                    original_page.retrieve_page(db, browser)
+                original_page = Page.find_or_create_page(link, db, self.depth)
                 self.canonical_link = link
 
     def set_page_type_code(self, content_type, db):
