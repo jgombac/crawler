@@ -25,10 +25,7 @@ Session = scoped_session(sessionmaker(bind=ENGINE))
 dbGlobal = Session()
 dbGlobal.execute("SET search_path TO crawldb")
 
-
 site_seeds = ["www.gov.si", "evem.gov.si", "e-uprava.gov.si", "e-prostor.gov.si"]
-
-
 
 
 def get_first_in_queue(db):
@@ -85,15 +82,11 @@ def crawl_page(page, db, browser):
         db.commit()
         return
 
-
-    #browser = get_browser()
     try:
         page.retrieve_page(db, browser)
     except Exception as ex:
         pass
     finally:
-        #browser.quit()
-
         db.commit()
 
 
@@ -115,8 +108,6 @@ def crawl():
         page = get_first_in_queue(db)
 
     browser.quit()
-
-
 
 
 def wait_before_crawling(page: Page, delay, db):

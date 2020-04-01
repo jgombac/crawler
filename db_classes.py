@@ -26,7 +26,6 @@ class Site(Base):
 
     @staticmethod
     def find_or_create_site(domain, db):
-        # with page_selection_lock:
         site = db.query(Site).filter(Site.domain == domain).first()
         if not site:
             site = Site(domain=domain)
