@@ -9,6 +9,7 @@ from selenium.webdriver.common.desired_capabilities import DesiredCapabilities
 import os
 from urllib.parse import urldefrag
 from selenium.webdriver.support.ui import WebDriverWait
+from tld import get_tld
 USER_AGENT = "fri-ieps-rmj2"
 
 
@@ -42,7 +43,8 @@ def get_content_type(headers):
 
 def clean_urls(urls):
     urls = [urldefrag(url)[0] for url in urls]
-    return list(filter(lambda url: (get_domain(url).endswith("gov.si") or get_domain(url).endswith("gov.si/") or url.startswith("/")) and not url.startswith("mailto") and not "javascript" in url, urls))
+    urls = [url for url in urls if url and not skip_url(url)]
+    return list(filter(lambda url: (is_gov(url) or url.startswith("/")), urls))
 
 
 def get_url_onclick(attribute):
@@ -62,6 +64,20 @@ PAGE_DATA_TYPES = {
     "application/vnd.openxmlformats-officedocument.presentationml.presentatio": "PPTX"
 }
 
+def skip_url(url):
+    return url.startswith("mailto") or "javascript" in url or url.startswith("tel:+") or url.startswith("tel:") or url.startswith("file:/")
+
+def is_gov(url):
+    url = url_normalize(url)
+    try:
+        res = get_tld(url, as_object=True)
+        if res.domain != 'gov' or res.tld != 'si':
+            return False
+
+        return True
+    except Exception as ex:
+        print("INvalid url", url)
+        return False
 
 def get_page_data_type(content_type):
     return PAGE_DATA_TYPES.get(content_type, "Other")

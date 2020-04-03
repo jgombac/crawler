@@ -42,10 +42,17 @@ def get_first_in_queue(db):
 
         depth = db.query(Page).filter(Page.page_type_code == "FRONTIER").order_by(Page.depth).first().depth
 
+        # prioritize www.gov.si
         page = db\
             .query(Page) \
-            .filter(and_(Page.page_type_code == "FRONTIER", Page.depth <= depth, Page.site_id.notin_(not_available)))\
+            .filter(and_(Page.page_type_code == "FRONTIER", Page.depth <= depth, Page.site_id == 1, Page.site_id.notin_(not_available)))\
             .first()
+
+        if not page:
+            page = db\
+                .query(Page) \
+                .filter(and_(Page.page_type_code == "FRONTIER", Page.depth <= depth, Page.site_id.notin_(not_available)))\
+                .first()
 
         while not page:
             page = db \
@@ -85,6 +92,7 @@ def crawl_page(page, db, browser):
     try:
         page.retrieve_page(db, browser)
     except Exception as ex:
+        print(f"{threading.currentThread().ident}: Crawl page \n", ex)
         pass
     finally:
         db.commit()
@@ -163,7 +171,10 @@ def run_workers(num):
 
 
 if __name__ == "__main__":
-    num_workers = 6
+
+
+
+    num_workers = 5
     if len(sys.argv) > 1:
         num_workers = int(sys.argv[1])
 

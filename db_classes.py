@@ -35,6 +35,7 @@ class Site(Base):
             db.commit()
         return site
 
+
     def retrieve_site_robots(self):
         url = url_normalize(self.domain + "/robots.txt")
         rp = RobotFileParser()
@@ -72,8 +73,8 @@ class Site(Base):
 
 
 link_table = Table("link", Base.metadata,
-                   Column("from_page", Integer, ForeignKey("page.id", ondelete="CASCADE")),
-                   Column("to_page", Integer, ForeignKey("page.id", ondelete="CASCADE")))
+                   Column("from_page", Integer, ForeignKey("page.id")),
+                   Column("to_page", Integer, ForeignKey("page.id")))
 
 
 class Page(Base):
@@ -126,6 +127,16 @@ class Page(Base):
                 db.commit()
         return existing_page
 
+    @staticmethod
+    def delete_page(page, db):
+        try:
+            db.execute(f"delete from crawldb.link where to_page = {page.id}")
+            db.execute(f"delete from crawldb.page where id = {page.id}")
+            db.commit()
+        except Exception as ex:
+            print(f"{threading.currentThread().ident}: Error deleting {page.url}")
+            db.commit()
+
     def retrieve_page(self, db, browser):
         url = url_normalize(self.url)
         print(f"{threading.currentThread().ident}: Crawling {url}")
@@ -164,7 +175,7 @@ class Page(Base):
                 for from_pg in self.from_page:
                     if redirect_page not in from_pg.to_page:
                         from_pg.to_page.append(redirect_page)
-            db.delete(self)
+            Page.delete_page(self, db)
             return
 
 
