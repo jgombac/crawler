@@ -15,41 +15,47 @@ import sys
 import warnings
 warnings.filterwarnings("ignore")
 page_selection_lock = threading.Lock()
+delay_lock = threading.Lock()
 ACTIVE_THREADS = 0
 DEFAULT_REQUEST_DELAY = 5
 
 CONNECTION_STRING = "postgres://postgres:postgres@192.168.99.100:5432/crawldb"
-ENGINE = create_engine(CONNECTION_STRING, echo=False)
+ENGINE = create_engine(CONNECTION_STRING, echo=False, connect_args={'options': '-csearch_path=crawldb'})
 Session = scoped_session(sessionmaker(bind=ENGINE))
 dbGlobal = Session()
 dbGlobal.execute("SET search_path TO crawldb")
 
-
 site_seeds = ["www.gov.si", "evem.gov.si", "e-uprava.gov.si", "e-prostor.gov.si"]
-
-
 
 
 def get_first_in_queue(db):
     with page_selection_lock:
-        not_available = db.query(Page).filter(Page.page_type_code == "CRAWLING").all()
-        not_available = [pg.site_id for pg in not_available]
-        depth = db.query(Page).filter(Page.page_type_code == "FRONTIER").order_by(Page.id).first().depth
+        crawling_results = []
+        try:
+            current_crawling = db.execute("select site_id from crawldb.page where page_type_code = 'CRAWLING'")
+            crawling_results = [dict(row) for row in current_crawling]
+        except Exception as e:
+            crawling_results = []
+            print("CRAWLING SELECT failed", e)
+            db.rollback()
+        not_available = [pg['site_id'] for pg in crawling_results]
+
+        depth = db.query(Page).filter(Page.page_type_code == "FRONTIER").order_by(Page.depth).first().depth
 
         page = db\
             .query(Page) \
             .filter(and_(Page.page_type_code == "FRONTIER", Page.depth <= depth, Page.site_id.notin_(not_available)))\
-            .order_by(Page.id).first()
+            .first()
 
         while not page:
             page = db \
                 .query(Page) \
                 .filter(
                 and_(Page.page_type_code == "FRONTIER", Page.depth <= depth)) \
-                .order_by(Page.id).first()
+                .first()
             depth += 1
 
-            if depth > 6:
+            if depth > 10:
                 return None
         page.page_type_code = "CRAWLING"
         db.commit()
@@ -57,7 +63,6 @@ def get_first_in_queue(db):
 
 
 def crawl_page(page, db, browser):
-    # Don't crawls the page if it's not from a seed site
     if page.page_type_code != "CRAWLING":
         return
 
@@ -66,20 +71,22 @@ def crawl_page(page, db, browser):
         delay = DEFAULT_REQUEST_DELAY
 
     # Don't crawl the site if we can't find it's IP
-    if not wait_before_crawling(page, delay, db):
+    should_wait = wait_before_crawling(page, delay, db)
+    if should_wait is False:
         page.page_type_code = "SKIP"
         db.commit()
         return
 
+    if should_wait is None:
+        page.page_type_code = "FRONTIER"
+        db.commit()
+        return
 
-    #browser = get_browser()
     try:
         page.retrieve_page(db, browser)
     except Exception as ex:
         pass
     finally:
-        #browser.quit()
-
         db.commit()
 
 
@@ -103,44 +110,43 @@ def crawl():
     browser.quit()
 
 
-
-
 def wait_before_crawling(page: Page, delay, db):
     """
     Checks when a page from this IP was last crawled and waits for the
     crawl delay if necessary.
     :return: False if IP could not be looked up, True after successfully waiting
     """
+    with delay_lock:
+        try:
+            page_ip = gethostbyname(page.get_domain())
+            visited_ip = db.query(VisitedIP).filter(VisitedIP.ip == page_ip).first()
 
-    try:
-        page_ip = gethostbyname(page.get_domain())
-        visited_ip = db.query(VisitedIP).filter(VisitedIP.ip == page_ip).first()
+            current_time = get_current_timestamp()
 
-        current_time = get_current_timestamp()
+            if not visited_ip:
+                visited_ip = VisitedIP(ip=page_ip, last_visited=timestamp_to_date(current_time))
+                db.add(visited_ip)
 
-        if not visited_ip:
-            visited_ip = VisitedIP(ip=page_ip, last_visited=timestamp_to_date(current_time))
-            db.add(visited_ip)
+                # If IP hasn't been visited yet, we don't need to wait
+                return True
 
-            # If IP hasn't been visited yet, we don't need to wait
+            time_elapsed = current_time - date_to_timestamp(visited_ip.last_visited)
+
+            if time_elapsed < delay:
+                wait_time = delay - time_elapsed
+                return None
+            else:
+                pass
+
+            visited_ip.last_visited = get_current_datetime()
+            db.commit()
+
             return True
 
-        time_elapsed = current_time - date_to_timestamp(visited_ip.last_visited)
-
-        if time_elapsed < delay:
-            wait_time = delay - time_elapsed
-            sleep(wait_time)
-        else:
-            pass
-
-        visited_ip.last_visited = get_current_datetime()
-
-        return True
-
-    except gaierror as e:
-        print("ERROR retrieving domain IP")
-        print(e)
-        return False
+        except gaierror as e:
+            print("ERROR retrieving domain IP")
+            print(e)
+            return False
 
 
 def run_workers(num):

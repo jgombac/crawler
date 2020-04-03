@@ -7,6 +7,7 @@ from url_normalize import url_normalize
 from selenium import webdriver
 from selenium.webdriver.common.desired_capabilities import DesiredCapabilities
 import os
+from urllib.parse import urldefrag
 from selenium.webdriver.support.ui import WebDriverWait
 USER_AGENT = "fri-ieps-rmj2"
 
@@ -40,7 +41,8 @@ def get_content_type(headers):
 
 
 def clean_urls(urls):
-    return list(filter(lambda url: ("gov.si" in get_domain(url) or url.startswith("/")) and not url.startswith("mailto") and not "javascript" in url, urls))
+    urls = [urldefrag(url)[0] for url in urls]
+    return list(filter(lambda url: (get_domain(url).endswith("gov.si") or get_domain(url).endswith("gov.si/") or url.startswith("/")) and not url.startswith("mailto") and not "javascript" in url, urls))
 
 
 def get_url_onclick(attribute):

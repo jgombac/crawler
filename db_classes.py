@@ -26,7 +26,6 @@ class Site(Base):
 
     @staticmethod
     def find_or_create_site(domain, db):
-        # with page_selection_lock:
         site = db.query(Site).filter(Site.domain == domain).first()
         if not site:
             site = Site(domain=domain)
@@ -73,8 +72,8 @@ class Site(Base):
 
 
 link_table = Table("link", Base.metadata,
-                   Column("from_page", Integer, ForeignKey("page.id")),
-                   Column("to_page", Integer, ForeignKey("page.id")))
+                   Column("from_page", Integer, ForeignKey("page.id", ondelete="CASCADE")),
+                   Column("to_page", Integer, ForeignKey("page.id", ondelete="CASCADE")))
 
 
 class Page(Base):
@@ -110,13 +109,15 @@ class Page(Base):
 
     @staticmethod
     def find_or_create_page(url, db, depth):
+        url = url_normalize(url)
         with page_selection_lock:
             existing_page = db.query(Page).filter(Page.url == url).first()
             if not existing_page:
                 # Find or create the site of the page
-                normalized_url = url_normalize(url)
-                domain = get_domain(normalized_url)
+                domain = get_domain(url)
                 site = Site.find_or_create_site(domain, db)
+                if not site:
+                    return
                 # Skip the page, if the site's robots.txt doesn't allow it
                 if not site.get_robots().can_fetch(USER_AGENT, url):
                     return
@@ -147,9 +148,25 @@ class Page(Base):
         self.http_status_code = response.status_code
         self.accessed_time = get_current_datetime()
 
-        if response.status_code > 300:
+        if response.status_code >= 400:
             self.page_type_code = "ERROR"
             return
+        elif response.status_code in [301, 302, 307, 308]:
+            redirect_url = response.headers.get("Location", "")
+            redirect_url = list(set(clean_urls(map(lambda x: url_normalize(self.domain + x if x.startswith("/") else x), [redirect_url]))))
+            if len(redirect_url) <= 0:
+                self.page_type_code = "ERROR"
+                return
+            redirect_url = redirect_url[0]
+            print(f"{threading.currentThread().ident}: Redirect {url} -> {redirect_url}")
+            redirect_page = Page.find_or_create_page(redirect_url, db, self.depth)
+            if redirect_page:
+                for from_pg in self.from_page:
+                    if redirect_page not in from_pg.to_page:
+                        from_pg.to_page.append(redirect_page)
+            db.delete(self)
+            return
+
 
         content_type = get_content_type(response.headers)
 
@@ -192,7 +209,7 @@ class Page(Base):
         images = [link.get_attribute("src") for link in
                   browser.find_elements_by_xpath("//img[@src]")]
 
-        self.images = [Image(page=self, filename=img if not img.startswith("data") else "") for img in images]
+        self.images = [Image(page=self, filename=img if not img.startswith("data") and len(img) < 255 else "") for img in images]
 
     def get_links(self, browser):
         links = [link.get_attribute("href") for link in
@@ -218,14 +235,11 @@ class Page(Base):
         canonical = browser.find_elements_by_xpath("//link[@rel='canonical']")
         if canonical:
             link = url_normalize(canonical[0].get_attribute("href"))
+            if len(clean_urls([link])) == 0:
+                return
             if link and link != self.url:
                 link = url_normalize(link)
-                original_page = db.query(Page).filter(Page.url == link).first()
-                if not original_page:
-                    original_page = Page(url=link, page_type_code="FRONTIER")
-                    db.add(original_page)
-                if original_page.page_type_code == "FRONTIER":
-                    original_page.retrieve_page(db, browser)
+                original_page = Page.find_or_create_page(link, db, self.depth)
                 self.canonical_link = link
 
     def set_page_type_code(self, content_type, db):

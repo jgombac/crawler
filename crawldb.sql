@@ -32,12 +32,6 @@ CREATE TABLE crawldb.page (
 	CONSTRAINT unq_url_idx UNIQUE ( url ) 
  );
 
-CREATE TABLE crawldb.crawl_depth (
-    id                   serial  NOT NULL,
-    depth                integer  ,
-    CONSTRAINT pk_crawl_depth_id PRIMARY KEY ( id )
-);
-
 CREATE INDEX "idx_page_site_id" ON crawldb.page ( site_id );
 
 CREATE INDEX "idx_page_page_type_code" ON crawldb.page ( page_type_code );
